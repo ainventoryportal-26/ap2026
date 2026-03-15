@@ -27,8 +27,8 @@
         .auth-card h3 { font-size: 1.125rem; font-weight: 600; color: var(--dark); margin-bottom: 1.5rem; text-align: center; }
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; font-size: 0.6875rem; font-weight: 600; color: var(--gray); text-transform: uppercase; margin-bottom: 0.5rem; }
-        .form-group input { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; font-size: 0.9375rem; transition: border-color 0.2s; }
-        .form-group input:focus { outline: none; border-color: var(--primary); }
+        .form-group input, .form-group select { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; font-size: 0.9375rem; transition: border-color 0.2s; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); }
         
         .btn { width: 100%; padding: 0.875rem; border: none; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s; margin-top: 0.5rem; }
         .btn-primary { background: var(--primary); color: #fff; }
@@ -74,8 +74,8 @@
         .modal-card { background: #fff; padding: 2rem; border-radius: 1rem; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         .modal-card h3 { margin-bottom: 1.5rem; font-size: 1.25rem; color: var(--dark); font-weight: 700; text-align: center; }
 
-        /* Smooth reveal for confirm password field */
-        #confirm-password-group { display: none; }
+        /* Hide extra fields during Login mode */
+        #signup-fields { display: none; }
     </style>
 </head>
 <body>
@@ -88,15 +88,33 @@
             <div id="auth-message" class="alert"></div>
             <h3 id="auth-title">Welcome Back</h3>
             <form id="auth-form">
+                
                 <div class="form-group">
                     <label>Email Address</label>
-                    <input type="email" id="email" required placeholder="name@company.com">
+                    <input type="email" id="email" required placeholder="User email address">
                 </div>
+                
+                <div id="signup-fields">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="signup-name" placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Branch</label>
+                        <select id="signup-branch">
+                            <option value="MIRI">MIRI</option>
+                            <option value="SIBU">SIBU</option>
+                            <option value="KUCHING">KUCHING</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="password" required placeholder="••••••••" minlength="6">
                 </div>
-                <div class="form-group" id="confirm-password-group">
+                
+                <div class="form-group" id="confirm-password-group" style="display: none;">
                     <label>Confirm Password</label>
                     <input type="password" id="confirm-password" placeholder="••••••••" minlength="6">
                 </div>
@@ -158,11 +176,15 @@
                 </div>
                 <div class="form-group">
                     <label>Full Name</label>
-                    <input type="text" id="profile-name" placeholder="John Doe">
+                    <input type="text" id="profile-name" placeholder="John Doe" required>
                 </div>
                 <div class="form-group">
-                    <label>Phone Number</label>
-                    <input type="text" id="profile-phone" placeholder="+60123456789">
+                    <label>Branch</label>
+                    <select id="profile-branch" required>
+                        <option value="MIRI">MIRI</option>
+                        <option value="SIBU">SIBU</option>
+                        <option value="KUCHING">KUCHING</option>
+                    </select>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
@@ -190,6 +212,10 @@
             const authForm = document.getElementById('auth-form');
             const authMsg = document.getElementById('auth-message');
             
+            // Sign Up Specific Elements
+            const signupFields = document.getElementById('signup-fields');
+            const signupNameInput = document.getElementById('signup-name');
+            const signupBranchInput = document.getElementById('signup-branch');
             const confirmPasswordGroup = document.getElementById('confirm-password-group');
             const confirmPasswordInput = document.getElementById('confirm-password');
             
@@ -207,15 +233,31 @@
                 toggleBtn.innerText = isLoginMode ? "Create New Account" : "Login";
                 
                 if (isLoginMode) {
+                    // Hide signup fields
+                    signupFields.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
+                    
+                    // Remove required attributes
+                    signupNameInput.removeAttribute('required');
                     confirmPasswordInput.removeAttribute('required');
+                    
+                    // Clear values
+                    signupNameInput.value = '';
+                    signupBranchInput.value = 'MIRI';
                     confirmPasswordInput.value = ''; 
+                    
                     if(authMsg.className !== "alert alert-success") {
                         authMsg.style.display = 'none';
                     }
                 } else {
+                    // Show signup fields
+                    signupFields.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
+                    
+                    // Add required attributes for signing up
+                    signupNameInput.setAttribute('required', 'true');
                     confirmPasswordInput.setAttribute('required', 'true');
+                    
                     authMsg.style.display = 'none';
                 }
             });
@@ -234,26 +276,48 @@
                         const { error } = await supabase.auth.signInWithPassword({ email, password });
                         if (error) throw error;
                     } else {
+                        // Registration Validation
                         const confirmPassword = confirmPasswordInput.value;
                         if (password !== confirmPassword) {
                             throw new Error("Passwords do not match. Please verify and try again.");
                         }
 
-                        const { error } = await supabase.auth.signUp({ email, password });
+                        // Get the extra data to pass to the trigger
+                        const fullName = signupNameInput.value;
+                        const branch = signupBranchInput.value;
+
+                        const { error } = await supabase.auth.signUp({ 
+                            email, 
+                            password,
+                            options: {
+                                data: {
+                                    full_name: fullName,
+                                    branch: branch
+                                }
+                            }
+                        });
                         if (error) throw error;
                         
                         authMsg.innerHTML = "<strong>Account created successfully!</strong><br>For your security, please check your email inbox to verify your account before logging in.";
                         authMsg.className = "alert alert-success";
                         authMsg.style.display = "block";
                         
+                        // Switch back to login UI automatically
                         isLoginMode = true;
                         authTitle.innerText = "Welcome Back";
                         authBtn.innerText = "Login";
                         toggleText.innerText = "Don't have an account?";
                         toggleBtn.innerText = "Create New Account";
+                        
+                        signupFields.style.display = 'none';
                         confirmPasswordGroup.style.display = 'none';
+                        
+                        signupNameInput.removeAttribute('required');
                         confirmPasswordInput.removeAttribute('required');
+                        
                         document.getElementById('password').value = '';
+                        signupNameInput.value = '';
+                        signupBranchInput.value = 'MIRI';
                         confirmPasswordInput.value = '';
                     }
                 } catch (err) {
@@ -295,13 +359,13 @@
                 if(!currentUserId) return;
                 profileMsg.style.display = 'none';
                 
-                // Fetch user data from the new profiles table
-                const { data, error } = await supabase.from('profiles').select('*').eq('id', currentUserId).single();
+                // Fetch user data from the user_profiles table
+                const { data, error } = await supabase.from('user_profiles').select('*').eq('id', currentUserId).single();
                 
                 if(data) {
                     document.getElementById('profile-role').value = data.role || 'Staff';
                     document.getElementById('profile-name').value = data.full_name || '';
-                    document.getElementById('profile-phone').value = data.phone_number || '';
+                    document.getElementById('profile-branch').value = data.branch || 'MIRI';
                 }
                 
                 profileModal.style.display = 'flex';
@@ -318,13 +382,12 @@
                 saveBtn.innerText = 'Saving...';
 
                 const newName = document.getElementById('profile-name').value;
-                const newPhone = document.getElementById('profile-phone').value;
+                const newBranch = document.getElementById('profile-branch').value;
 
                 try {
-                    const { error } = await supabase.from('profiles').update({ 
+                    const { error } = await supabase.from('user_profiles').update({ 
                         full_name: newName, 
-                        phone_number: newPhone,
-                        updated_at: new Date().toISOString()
+                        branch: newBranch
                     }).eq('id', currentUserId);
 
                     if (error) throw error;
